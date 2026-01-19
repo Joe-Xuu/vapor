@@ -12,14 +12,14 @@
 
 - 反垃圾,SHA-256 PoW,工作量证明。类似比特币挖矿。
 
-## vision 我的目标
-- trustless: 不需要任何中间服务器。因为根本没有服务器。
+## vision 目标
+- trustless: 不需要任何中间服务器。因为根本没有服务器 everything on chain。
 
 - Censorship Resistant: 只要互联网没被物理切断，节点之间就能通过 Mesh 网络绕过封锁传递消息。没有网线可以拔
 
-- Perfect Forward Secrecy: 这是最大的卖点。即便攻击者录下了所有加密流量，并在这个月之后偷到了你的私钥，他也解不开上个月的消息。因为密钥马上就变了。
+- Forward Secrecy: 即便攻击者录下了所有加密流量，并在这个月之后偷到了你的私钥，他也解不开上个月的消息。因为密钥10min/次就变了。
 
-- Metadata Privacy: 配合 Gossipsub 广播，攻击者很难知道“谁在和谁说话”。因为消息是向全网广播的，只有持有私钥的人能看懂。
+- Metadata Privacy: Gossipsub 广播，消息是向全网广播的，只有持有私钥的人能看懂。
 
 - Anti-Spam: 内置 PoW 机制，让发送垃圾广告变得极其昂贵。
 
