@@ -1,0 +1,24 @@
+[package]
+name = "vapor_chat"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+tokio = { version = "1", features = ["full"] }
+libp2p = { version = "0.52", features = ["tcp", "dns", "websocket", "noise", "yamux", "gossipsub", "kad", "ping", "tokio", "macros"] }
+futures = "0.3.31"
+
+# 加密更新
+# 现代且快速的对称加密算法 (AES-GCM)
+aes-gcm = "0.10"
+# 随机数生成器 (用于生成加密的随机因子 Nonce)
+rand = "0.8"
+# 序列化库 (把加密后的二进制变成能在网络上传输的格式)
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+# 用来处理 Base64 编码 (方便打印密文看效果)
+base64 = "0.21"
+sha2 = "0.10" #time based
+
+# 极速的椭圆曲线 Diffie-Hellman 算法
+x25519-dalek = { version = "2.0", features = ["static_secrets", "getrandom"] }
