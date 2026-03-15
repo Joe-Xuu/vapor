@@ -18,13 +18,15 @@
         .msg-system { background: transparent; color: #aaa; font-size: 0.85em; text-align: center; align-self: center; font-style: italic; }
         
         .controls { display: flex; gap: 10px; margin-bottom: 10px; }
-        input { flex: 1; padding: 10px; background: #222; border: 1px solid #444; color: #fff; border-radius: 4px; outline: none; }
+        input { flex: 1; padding: 10px; background: #222; border: 1px solid #444; color: #fff; border-radius: 4px; outline: none; font-family: monospace; }
         input:focus { border-color: #00ff88; }
         
-        button { padding: 10px 20px; background: #00ff88; color: #000; border: none; border-radius: 4px; font-weight: bold; cursor: pointer; transition: 0.2s; }
+        button { padding: 10px 20px; background: #00ff88; color: #000; border: none; border-radius: 4px; font-weight: bold; cursor: pointer; transition: 0.2s; white-space: nowrap; }
         button:hover { background: #00cc6a; box-shadow: 0 0 10px rgba(0,255,136,0.5); }
         button:active { transform: scale(0.98); }
         
+        .btn-blue { background: #007acc; color: white; }
+        .btn-blue:hover { background: #0099ff; box-shadow: 0 0 10px rgba(0,153,255,0.5); }
         #handshake-btn { background: #444; color: #fff; }
         #handshake-btn:hover { background: #555; box-shadow: none; }
     </style>
@@ -36,32 +38,32 @@
     </div>
 
     <div id="chat-window">
-        <div class="msg-box msg-system">欢迎来到 Vapor 去中心化暗网。正在连接 P2P 节点...</div>
+        <div class="msg-box msg-system">欢迎来到 Vapor 去中心化网络。请先通过 IP 连接节点。</div>
     </div>
     
     <div class="controls">
-        <input type="text" id="target-id" placeholder="目标 Peer ID (选填，当前为广播模式)" disabled title="当前版本硬编码为向所有握手好友发送">
-        <button id="handshake-btn">广播握手 👋</button>
+        <input type="text" id="dial-addr" placeholder="拨号格式: /ip4/对方IP/tcp/11223" autocomplete="off">
+        <button id="dial-btn" class="btn-blue">物理连接 🔗</button>
     </div>
+
+    <div class="controls">
+        <button id="handshake-btn" style="flex:1;">在已连接的物理网络中广播公钥进行握手 👋</button>
+    </div>
+
     <div class="controls">
         <input type="text" id="msg-input" placeholder="输入要加密发送的消息..." autocomplete="off">
-        <button id="send-btn">发送</button>
+        <button id="send-btn">发送加密消息</button>
     </div>
 
     <script>
-        // 等待 Tauri API 注入完成
         window.addEventListener('DOMContentLoaded', () => {
-            // 💡 Tauri v2 的新版 API 获取方式
             const { invoke } = window.__TAURI__.core;
             const { listen } = window.__TAURI__.event;
-
-            // ... 后面的代码完全不用动 ...
 
             const chatWindow = document.getElementById('chat-window');
             const myIdDiv = document.getElementById('my-id');
             const msgInput = document.getElementById('msg-input');
 
-            // 辅助函数：追加消息到聊天窗口
             function appendMsg(text, type = 'system') {
                 const msgDiv = document.createElement('div');
                 msgDiv.className = `msg-box msg-${type}`;
@@ -70,48 +72,41 @@
                 chatWindow.scrollTop = chatWindow.scrollHeight;
             }
 
-            // 🎧 1. 监听后端发来的本机 Peer ID
-            listen('my-peer-id', (event) => {
-                myIdDiv.textContent = `ID: ${event.payload}`;
-                appendMsg('✅ P2P 引擎与加密模块已就绪', 'system');
+            listen('my-peer-id', (e) => { myIdDiv.textContent = `ID: ${e.payload}`; });
+            
+            // 🎧 监听后台发来的任何系统通知 (连接成功、拨号失败等)
+            listen('system-msg', (e) => { appendMsg(e.payload, 'system'); });
+
+            listen('p2p-message', (e) => {
+                const shortId = e.payload.peer_id.substring(0, 6) + '...';
+                appendMsg(`[${shortId}]: ${e.payload.msg}`, 'other');
             });
 
-            // 🎧 2. 监听后端解密成功后推送来的 P2P 消息
-            listen('p2p-message', (event) => {
-                const { peer_id, msg } = event.payload;
-                // 截取 ID 前 6 位，保持界面整洁
-                const shortId = peer_id.substring(0, 6) + '...';
-                appendMsg(`[${shortId}]: ${msg}`, 'other');
-            });
-
-            // 📤 3. 按钮点击：发送握手
-            document.getElementById('handshake-btn').onclick = async () => {
-                try {
-                    await invoke('do_handshake');
-                    appendMsg('📡 已向全网广播 ECDH 公钥，等待新朋友自动回礼...', 'system');
-                } catch (e) { appendMsg(`❌ 握手失败: ${e}`, 'system'); }
+            // 📤 按钮：物理拨号连接
+            document.getElementById('dial-btn').onclick = async () => {
+                const addr = document.getElementById('dial-addr').value.trim();
+                if (!addr) return appendMsg('❌ 请先填写地址', 'system');
+                appendMsg(`⏳ 正在呼叫 ${addr}...`, 'system');
+                try { await invoke('connect_to_node', { addr }); } 
+                catch (e) { appendMsg(`❌ 报错: ${e}`, 'system'); }
             };
 
-            // 📤 4. 按钮点击：发送消息
+            document.getElementById('handshake-btn').onclick = async () => {
+                try { await invoke('do_handshake'); } 
+                catch (e) { appendMsg(`❌ 握手失败: ${e}`, 'system'); }
+            };
+
             document.getElementById('send-btn').onclick = async () => {
                 const msg = msgInput.value.trim();
                 if (!msg) return;
-
                 try {
-                    // 调用 Rust 后端的 send_p2p_message 命令
-                    await invoke('send_p2p_message', { targetId: "ALL", msg: msg });
-                    
+                    await invoke('send_p2p_message', { targetId: "ALL", msg });
                     appendMsg(`我: ${msg}`, 'self');
-                    msgInput.value = ''; // 清空输入框
+                    msgInput.value = ''; 
                 } catch (e) { appendMsg(`❌ 发送失败: ${e}`, 'system'); }
             };
 
-            // 敲击回车键发送
-            msgInput.addEventListener('keypress', function (e) {
-                if (e.key === 'Enter') {
-                    document.getElementById('send-btn').click();
-                }
-            });
+            msgInput.addEventListener('keypress', (e) => { if (e.key === 'Enter') document.getElementById('send-btn').click(); });
         });
     </script>
 </body>
