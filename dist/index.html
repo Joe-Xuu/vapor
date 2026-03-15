@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Vapor Chat - 赛博通讯</title>
+    <style>
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #121212; color: #e0e0e0; padding: 20px; margin: 0; }
+        .header { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #333; padding-bottom: 10px; margin-bottom: 15px; }
+        h3 { margin: 0; color: #00ff88; text-shadow: 0 0 5px rgba(0,255,136,0.3); }
+        #my-id { color: #888; font-size: 0.9em; user-select: all; cursor: pointer; }
+        
+        #chat-window { height: 400px; background: #1a1a1a; border: 1px solid #333; border-radius: 5px; overflow-y: auto; padding: 15px; margin-bottom: 15px; display: flex; flex-direction: column; gap: 8px; }
+        
+        .msg-box { padding: 8px 12px; border-radius: 4px; max-width: 80%; word-break: break-all; font-size: 0.95em; }
+        .msg-other { background: #2a3d32; border-left: 3px solid #00ff88; align-self: flex-start; }
+        .msg-self { background: #333; border-right: 3px solid #888; align-self: flex-end; color: #ccc; }
+        .msg-system { background: transparent; color: #aaa; font-size: 0.85em; text-align: center; align-self: center; font-style: italic; }
+        
+        .controls { display: flex; gap: 10px; margin-bottom: 10px; }
+        input { flex: 1; padding: 10px; background: #222; border: 1px solid #444; color: #fff; border-radius: 4px; outline: none; }
+        input:focus { border-color: #00ff88; }
+        
+        button { padding: 10px 20px; background: #00ff88; color: #000; border: none; border-radius: 4px; font-weight: bold; cursor: pointer; transition: 0.2s; }
+        button:hover { background: #00cc6a; box-shadow: 0 0 10px rgba(0,255,136,0.5); }
+        button:active { transform: scale(0.98); }
+        
+        #handshake-btn { background: #444; color: #fff; }
+        #handshake-btn:hover { background: #555; box-shadow: none; }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h3>Vapor Chat</h3>
+        <div id="my-id">等待节点启动...</div>
+    </div>
+
+    <div id="chat-window">
+        <div class="msg-box msg-system">欢迎来到 Vapor 去中心化暗网。正在连接 P2P 节点...</div>
+    </div>
+    
+    <div class="controls">
+        <input type="text" id="target-id" placeholder="目标 Peer ID (选填，当前为广播模式)" disabled title="当前版本硬编码为向所有握手好友发送">
+        <button id="handshake-btn">广播握手 👋</button>
+    </div>
+    <div class="controls">
+        <input type="text" id="msg-input" placeholder="输入要加密发送的消息..." autocomplete="off">
+        <button id="send-btn">发送</button>
+    </div>
+
+    <script>
+        // 等待 Tauri API 注入完成
+        window.addEventListener('DOMContentLoaded', () => {
+            // 💡 Tauri v2 的新版 API 获取方式
+            const { invoke } = window.__TAURI__.core;
+            const { listen } = window.__TAURI__.event;
+
+            // ... 后面的代码完全不用动 ...
+
+            const chatWindow = document.getElementById('chat-window');
+            const myIdDiv = document.getElementById('my-id');
+            const msgInput = document.getElementById('msg-input');
+
+            // 辅助函数：追加消息到聊天窗口
+            function appendMsg(text, type = 'system') {
+                const msgDiv = document.createElement('div');
+                msgDiv.className = `msg-box msg-${type}`;
+                msgDiv.textContent = text;
+                chatWindow.appendChild(msgDiv);
+                chatWindow.scrollTop = chatWindow.scrollHeight;
+            }
+
+            // 🎧 1. 监听后端发来的本机 Peer ID
+            listen('my-peer-id', (event) => {
+                myIdDiv.textContent = `ID: ${event.payload}`;
+                appendMsg('✅ P2P 引擎与加密模块已就绪', 'system');
+            });
+
+            // 🎧 2. 监听后端解密成功后推送来的 P2P 消息
+            listen('p2p-message', (event) => {
+                const { peer_id, msg } = event.payload;
+                // 截取 ID 前 6 位，保持界面整洁
+                const shortId = peer_id.substring(0, 6) + '...';
+                appendMsg(`[${shortId}]: ${msg}`, 'other');
+            });
+
+            // 📤 3. 按钮点击：发送握手
+            document.getElementById('handshake-btn').onclick = async () => {
+                try {
+                    await invoke('do_handshake');
+                    appendMsg('📡 已向全网广播 ECDH 公钥，等待新朋友自动回礼...', 'system');
+                } catch (e) { appendMsg(`❌ 握手失败: ${e}`, 'system'); }
+            };
+
+            // 📤 4. 按钮点击：发送消息
+            document.getElementById('send-btn').onclick = async () => {
+                const msg = msgInput.value.trim();
+                if (!msg) return;
+
+                try {
+                    // 调用 Rust 后端的 send_p2p_message 命令
+                    await invoke('send_p2p_message', { targetId: "ALL", msg: msg });
+                    
+                    appendMsg(`我: ${msg}`, 'self');
+                    msgInput.value = ''; // 清空输入框
+                } catch (e) { appendMsg(`❌ 发送失败: ${e}`, 'system'); }
+            };
+
+            // 敲击回车键发送
+            msgInput.addEventListener('keypress', function (e) {
+                if (e.key === 'Enter') {
+                    document.getElementById('send-btn').click();
+                }
+            });
+        });
+    </script>
+</body>
+</html>

@@ -11,7 +11,7 @@ const DIFFICULTY_PREFIX_ZEROS: usize = 2;
 /// 输出：一个神奇的数字 (Nonce)，使得 SHA256(数据 + Nonce) 符合难度
 pub fn mine_pow(data: &[u8]) -> u64 {
     let mut nonce = 0u64;
-    let mut hasher = Sha256::new();
+    let hasher = Sha256::new();
 
     loop {
         // 1. 准备哈希器
